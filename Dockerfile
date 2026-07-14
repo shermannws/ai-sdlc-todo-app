@@ -41,8 +41,9 @@ RUN mkdir -p /data && chown nextjs:nodejs /data
 # Production node_modules (compiled on alpine, same as runner)
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules ./node_modules
 # Built Next.js output and app manifest
-COPY --from=builder --chown=nextjs:nodejs /app/.next        ./.next
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/.next          ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/package.json   ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./next.config.ts
 
 USER nextjs
 
@@ -53,4 +54,4 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_PATH=/data/todos.db
 
-CMD ["node_modules/.bin/next", "start"]
+CMD ["npm", "start"]
