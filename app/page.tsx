@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Todo, Priority, Template, RecurrencePattern, Subtask } from '@/lib/db';
 import { useNotifications } from '@/lib/hooks/useNotifications';
@@ -358,6 +359,10 @@ export default function HomePage() {
 
   useNotifications();
 
+  // Export / Import state
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -629,6 +634,30 @@ export default function HomePage() {
     router.push('/login');
   }
 
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const res = await fetch('/api/todos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await fetchTodos();
+      } else {
+        const err = await res.json();
+        setFormError(err.error ?? 'Import failed');
+      }
+    } catch {
+      setFormError('Failed to read or parse the import file');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -653,7 +682,52 @@ export default function HomePage() {
           {username && <p className="text-sm text-gray-500 dark:text-gray-400">Logged in as {username}</p>}
         </div>
         <div className="flex items-center gap-3">
-          {/* ===== FEATURE: export-calendar — insert export/import buttons here ===== */}
+          {/* Calendar link */}
+          <Link
+            href="/calendar"
+            className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Calendar
+          </Link>
+          {/* Export dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu((prev) => !prev)}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Export ▾
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => { setShowExportMenu(false); window.location.href = '/api/todos/export?format=json'; }}
+                >
+                  Export as JSON
+                </button>
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => { setShowExportMenu(false); window.location.href = '/api/todos/export?format=csv'; }}
+                >
+                  Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Import */}
+          <button
+            onClick={() => importInputRef.current?.click()}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Import
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
           <button
             onClick={handleLogout}
             className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
