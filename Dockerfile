@@ -54,11 +54,3 @@ ENV HOSTNAME=0.0.0.0
 ENV DATABASE_PATH=/data/todos.db
 
 CMD ["node_modules/.bin/next", "start"]
-
-
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
-# SQLite database stored in the /data volume; override via Railway env var
-ENV DATABASE_PATH=/data/todos.db
-
-CMD ["node", "server.js"]
