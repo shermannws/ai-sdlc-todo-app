@@ -1,0 +1,42 @@
+# Dependencies & build artefacts
+node_modules
+.next
+out
+
+# Database files (never bake the dev DB into the image)
+*.db
+*.db-shm
+*.db-wal
+
+# Dev / test tooling
+.playwright
+test-results
+playwright-report
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+
+# Git
+.git
+.gitignore
+
+# Docs & CI that aren't needed at runtime
+README.md
+CLAUDE.md
+EVALUATION.md
+USER_GUIDE.md
+RAILWAY_*.md
+MCP_SQLITE_GUIDE.md
+PRPs/
+scripts/
+tests/
+mcp-configs/
+plugins/
