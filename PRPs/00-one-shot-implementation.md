@@ -14,27 +14,27 @@ Self-contained build spec for the entire app in a single pass. It condenses `PRP
 
 ## Model Routing
 
-Default to Sonnet 5 only where correctness risk is high (security, subtle math, cross-feature integration, foundational schema). Route everything else — repetitive CRUD, UI boilerplate, mechanical tests — to a fast/cheap model (Haiku 4.5), per this repo's `.claude/rules/performance.md` convention. Roughly 70% of the line count across the 11 features is repetitive CRUD + UI scaffolding, so this is where the token/cost savings actually come from.
+Default to Sonnet 4.6 only where correctness risk is high (security, subtle math, cross-feature integration, foundational schema). Route everything else — repetitive CRUD, UI boilerplate, mechanical tests — to auto, per this repo's `.claude/rules/performance.md` convention. Roughly 70% of the line count across the 11 features is repetitive CRUD + UI scaffolding, so this is where the token/cost savings actually come from.
 
 | Task | Model | Why |
 |---|---|---|
-| Phase 0: schema + types | **Sonnet 5** | Foundational — mistakes cascade into all 11 features |
-| Auth: WebAuthn flow, session, middleware (11) | **Sonnet 5** | Security-critical; subtle correctness (counter regression, credential encoding) |
-| Todo sort/section comparator + API routes (01) | **Sonnet 5** | Cross-cutting logic every other feature depends on |
-| Recurring due-date calculation (03) | **Sonnet 5** | Month/year-end clamping edge cases, easy to get subtly wrong |
-| Reminder polling + dedup logic (04) | **Sonnet 5** | Timing/race-condition correctness |
-| Export/Import transaction + ID remap + tag conflict resolution (09) | **Sonnet 5** | Multi-table transaction, data-integrity critical |
-| Calendar grid generation (10) | **Sonnet 5** | Leap years, 5-vs-6-week rows, timezone boundary correctness |
-| Priority badges, recurrence/reminder/tag badge components (02) | Haiku 4.5 | Small, fully-specified UI components |
-| Tags CRUD routes + Manage Tags modal (06) | Haiku 4.5 | Repeats the CRUD pattern Sonnet establishes in Phase 0/01 |
-| Subtasks CRUD routes + UI (05) | Haiku 4.5 | Same — mechanical once the pattern exists |
-| Templates CRUD (excl. `/use`) (07) | Haiku 4.5 | Same — mechanical once the pattern exists |
-| Search/filter pure functions + UI (08) | Haiku 4.5 | Fully specified by `FilterState` + fixed AND order below, mechanical translation |
-| CSV export flattening (09) | Haiku 4.5 | String formatting, no correctness ambiguity |
-| Holiday seed script (10) | Haiku 4.5 | Static data insertion |
-| Playwright test cases (all features) | Haiku 4.5 | Mechanical once `tests/helpers.ts` exists |
+| Phase 0: schema + types | **Sonnet 4.6** | Foundational — mistakes cascade into all 11 features |
+| Auth: WebAuthn flow, session, middleware (11) | **Sonnet 4.6** | Security-critical; subtle correctness (counter regression, credential encoding) |
+| Todo sort/section comparator + API routes (01) | **Sonnet 4.6** | Cross-cutting logic every other feature depends on |
+| Recurring due-date calculation (03) | **Sonnet 4.6** | Month/year-end clamping edge cases, easy to get subtly wrong |
+| Reminder polling + dedup logic (04) | **Sonnet 4.6** | Timing/race-condition correctness |
+| Export/Import transaction + ID remap + tag conflict resolution (09) | **Sonnet 4.6** | Multi-table transaction, data-integrity critical |
+| Calendar grid generation (10) | **Sonnet 4.6** | Leap years, 5-vs-6-week rows, timezone boundary correctness |
+| Priority badges, recurrence/reminder/tag badge components (02) | auto | Small, fully-specified UI components |
+| Tags CRUD routes + Manage Tags modal (06) | auto | Repeats the CRUD pattern Sonnet establishes in Phase 0/01 |
+| Subtasks CRUD routes + UI (05) | auto | Same — mechanical once the pattern exists |
+| Templates CRUD (excl. `/use`) (07) | auto | Same — mechanical once the pattern exists |
+| Search/filter pure functions + UI (08) | auto | Fully specified by `FilterState` + fixed AND order below, mechanical translation |
+| CSV export flattening (09) | auto | String formatting, no correctness ambiguity |
+| Holiday seed script (10) | auto | Static data insertion |
+| Playwright test cases (all features) | auto | Mechanical once `tests/helpers.ts` exists |
 
-**How to apply in Claude Code:** for Haiku-routed rows, dispatch via the `Agent` tool with `model: "haiku"`; batch a whole feature's CRUD route + UI component + tests into *one* subagent call rather than one call per file — dispatch overhead eats the savings otherwise. For Sonnet-routed rows, do the work directly yourself (no subagent) so it benefits from the accumulated context of the schema/type decisions made in Phase 0.
+**How to apply in Claude Code:** for auto-routed rows, dispatch via the `Agent` tool with `model: "auto"`; batch a whole feature's CRUD route + UI component + tests into *one* subagent call rather than one call per file — dispatch overhead eats the savings otherwise. For Sonnet-routed rows, do the work directly yourself (no subagent) so it benefits from the accumulated context of the schema/type decisions made in Phase 0.
 
 ## Stack & Layout
 
