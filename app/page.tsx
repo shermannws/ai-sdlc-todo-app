@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Todo, Priority, Template, RecurrencePattern } from '@/lib/db';
+import type { Todo, Priority, Template, RecurrencePattern, Subtask } from '@/lib/db';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -49,11 +49,31 @@ function TodoItem({
   todo,
   onToggle,
   onDelete,
+  isExpanded,
+  subtaskInput,
+  onToggleExpand,
+  onSubtaskInputChange,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
 }: {
   todo: Todo;
   onToggle: (todo: Todo) => void;
   onDelete: (id: number) => void;
+  isExpanded: boolean;
+  subtaskInput: string;
+  onToggleExpand: (todoId: number) => void;
+  onSubtaskInputChange: (todoId: number, value: string) => void;
+  onAddSubtask: (todoId: number) => void;
+  onToggleSubtask: (subtask: Subtask) => void;
+  onDeleteSubtask: (subtaskId: number) => void;
 }) {
+  const subtasks = todo.subtasks ?? [];
+  const completedCount = subtasks.filter((subtask) => subtask.completed).length;
+  const totalCount = subtasks.length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const progressColor = progressPercent === 100 ? '#22C55E' : '#3B82F6';
+
   return (
     <div
       className={`p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-start gap-3 ${
@@ -89,7 +109,90 @@ function TodoItem({
             })}
           </p>
         )}
-        {/* ===== FEATURE: subtasks — insert subtask section per todo item here ===== */}
+        <div className="mt-2">
+          {totalCount > 0 && (
+            <div className="mb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{completedCount}/{totalCount} subtasks</p>
+              <div
+                className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progressPercent}
+              >
+                <div
+                  className="h-full transition-all"
+                  style={{ width: `${progressPercent}%`, backgroundColor: progressColor }}
+                />
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onToggleExpand(todo.id)}
+            className="text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+            aria-expanded={isExpanded}
+            aria-label={`Toggle subtasks for ${todo.title}`}
+          >
+            {isExpanded ? '▼' : '▶'} Subtasks ({totalCount})
+          </button>
+
+          {isExpanded && (
+            <div className="mt-2 space-y-2">
+              {subtasks.map((subtask) => (
+                <div key={subtask.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={subtask.completed}
+                    onChange={() => onToggleSubtask(subtask)}
+                    className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                    aria-label={`Toggle subtask ${subtask.title}`}
+                  />
+                  <span
+                    className={`flex-1 text-gray-700 dark:text-gray-200 ${
+                      subtask.completed ? 'line-through text-gray-400 dark:text-gray-500' : ''
+                    }`}
+                  >
+                    {subtask.title}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteSubtask(subtask.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    aria-label={`Delete subtask ${subtask.title}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={subtaskInput}
+                  onChange={(e) => onSubtaskInputChange(todo.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      onAddSubtask(todo.id);
+                    }
+                  }}
+                  placeholder="Add subtask…"
+                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                  aria-label={`Add subtask for ${todo.title}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => onAddSubtask(todo.id)}
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <button
         onClick={() => onDelete(todo.id)}
@@ -108,6 +211,13 @@ function Section({
   todos,
   onToggle,
   onDelete,
+  expandedTodos,
+  subtaskInputs,
+  onToggleExpand,
+  onSubtaskInputChange,
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
   emptyMessage,
 }: {
   title: string;
@@ -115,6 +225,13 @@ function Section({
   todos: Todo[];
   onToggle: (todo: Todo) => void;
   onDelete: (id: number) => void;
+  expandedTodos: Set<number>;
+  subtaskInputs: Record<number, string>;
+  onToggleExpand: (todoId: number) => void;
+  onSubtaskInputChange: (todoId: number, value: string) => void;
+  onAddSubtask: (todoId: number) => void;
+  onToggleSubtask: (subtask: Subtask) => void;
+  onDeleteSubtask: (subtaskId: number) => void;
   emptyMessage?: string;
 }) {
   return (
@@ -127,7 +244,19 @@ function Section({
       ) : (
         <div className="space-y-2">
           {todos.map((todo) => (
-            <TodoItem key={todo.id} todo={todo} onToggle={onToggle} onDelete={onDelete} />
+            <TodoItem
+              key={todo.id}
+              todo={todo}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              isExpanded={expandedTodos.has(todo.id)}
+              subtaskInput={subtaskInputs[todo.id] ?? ''}
+              onToggleExpand={onToggleExpand}
+              onSubtaskInputChange={onSubtaskInputChange}
+              onAddSubtask={onAddSubtask}
+              onToggleSubtask={onToggleSubtask}
+              onDeleteSubtask={onDeleteSubtask}
+            />
           ))}
         </div>
       )}
@@ -148,6 +277,8 @@ export default function HomePage() {
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('medium');
+  const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
+  const [subtaskInputs, setSubtaskInputs] = useState<Record<number, string>>({});
 
   // ===== FEATURE: recurring-reminders — insert recurrence/reminder state here =====
   // ===== FEATURE: search-filtering — insert filter state here =====
@@ -372,6 +503,63 @@ export default function HomePage() {
     const res = await fetch(`/api/todos/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       // Rollback
+      await fetchTodos();
+    }
+  }
+
+  function handleToggleExpand(todoId: number) {
+    setExpandedTodos((prev) => {
+      const next = new Set(prev);
+      if (next.has(todoId)) {
+        next.delete(todoId);
+      } else {
+        next.add(todoId);
+      }
+      return next;
+    });
+  }
+
+  function handleSubtaskInputChange(todoId: number, value: string) {
+    setSubtaskInputs((prev) => ({
+      ...prev,
+      [todoId]: value,
+    }));
+  }
+
+  async function handleAddSubtask(todoId: number) {
+    const title = (subtaskInputs[todoId] ?? '').trim();
+    if (!title) return;
+
+    const res = await fetch(`/api/todos/${todoId}/subtasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+
+    if (res.ok) {
+      setSubtaskInputs((prev) => ({
+        ...prev,
+        [todoId]: '',
+      }));
+      await fetchTodos();
+    }
+  }
+
+  async function handleToggleSubtask(subtask: Subtask) {
+    const res = await fetch(`/api/subtasks/${subtask.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed: !subtask.completed }),
+    });
+
+    if (res.ok) {
+      await fetchTodos();
+    }
+  }
+
+  async function handleDeleteSubtask(subtaskId: number) {
+    const res = await fetch(`/api/subtasks/${subtaskId}`, { method: 'DELETE' });
+    if (res.ok) {
       await fetchTodos();
     }
   }
@@ -749,6 +937,13 @@ export default function HomePage() {
           todos={overdue}
           onToggle={handleToggle}
           onDelete={handleDelete}
+          expandedTodos={expandedTodos}
+          subtaskInputs={subtaskInputs}
+          onToggleExpand={handleToggleExpand}
+          onSubtaskInputChange={handleSubtaskInputChange}
+          onAddSubtask={handleAddSubtask}
+          onToggleSubtask={handleToggleSubtask}
+          onDeleteSubtask={handleDeleteSubtask}
         />
       )}
 
@@ -758,6 +953,13 @@ export default function HomePage() {
         todos={pending}
         onToggle={handleToggle}
         onDelete={handleDelete}
+        expandedTodos={expandedTodos}
+        subtaskInputs={subtaskInputs}
+        onToggleExpand={handleToggleExpand}
+        onSubtaskInputChange={handleSubtaskInputChange}
+        onAddSubtask={handleAddSubtask}
+        onToggleSubtask={handleToggleSubtask}
+        onDeleteSubtask={handleDeleteSubtask}
         emptyMessage="No pending todos — you're all caught up!"
       />
 
@@ -768,6 +970,13 @@ export default function HomePage() {
           todos={completed}
           onToggle={handleToggle}
           onDelete={handleDelete}
+          expandedTodos={expandedTodos}
+          subtaskInputs={subtaskInputs}
+          onToggleExpand={handleToggleExpand}
+          onSubtaskInputChange={handleSubtaskInputChange}
+          onAddSubtask={handleAddSubtask}
+          onToggleSubtask={handleToggleSubtask}
+          onDeleteSubtask={handleDeleteSubtask}
         />
       )}
     </div>
