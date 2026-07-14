@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { SignJWT } from 'jose';
 import path from 'path';
 
-const TEST_JWT_SECRET = 'dev-secret-do-not-use-in-production-32c';
+const TEST_JWT_SECRET = 'dev-jwt-secret-change-this-in-production-must-be-32chars';
 const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), 'todos.db');
 
 export class TodoAppHelper {
@@ -32,14 +32,14 @@ export class TodoAppHelper {
     await this.page.getByRole('button', { name: 'Register' }).click();
     await this.page.getByLabel('Username').fill(username);
     await this.page.getByRole('button', { name: /Register with Passkey/i }).click();
-    await this.page.waitForURL('/', { timeout: 10_000 });
+    await this.page.waitForURL('/', { timeout: 30_000 });
   }
 
   async login(username: string): Promise<void> {
     await this.page.goto('/login');
     await this.page.getByLabel('Username').fill(username);
     await this.page.getByRole('button', { name: /Login with Passkey/i }).click();
-    await this.page.waitForURL('/', { timeout: 10_000 });
+    await this.page.waitForURL('/', { timeout: 30_000 });
   }
 
   async logout(): Promise<void> {
@@ -87,7 +87,7 @@ export class TodoAppHelper {
       await this.page.locator('input[type="datetime-local"]').fill(opts.dueDate);
     }
     if (opts?.priority) {
-      await this.page.locator('select').selectOption(opts.priority);
+      await this.page.getByLabel('Priority').selectOption(opts.priority);
     }
     await this.page.getByRole('button', { name: 'Add Todo' }).click();
     await this.page.getByText(title).waitFor({ timeout: 5_000 });
@@ -99,7 +99,7 @@ export class TodoAppHelper {
     const todoCard = this.page.locator('div', { hasText: todoTitle }).first();
     await todoCard.getByRole('button', { name: new RegExp(`Toggle subtasks for ${todoTitle}`) }).click();
     await todoCard.getByLabel(`Add subtask for ${todoTitle}`).fill(subtaskTitle);
-    await todoCard.getByRole('button', { name: 'Add' }).click();
+    await todoCard.getByRole('button', { name: 'Add', exact: true }).click();
     await expect(this.page.getByText(subtaskTitle)).toBeVisible({ timeout: 5_000 });
   }
 

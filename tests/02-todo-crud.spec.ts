@@ -33,7 +33,7 @@ test.describe('Todo CRUD', () => {
 
   test('mark todo complete → moves to Completed section', async ({ page }) => {
     await helper.createTodo('Finish report');
-    const checkbox = page.locator('input[type="checkbox"]').first();
+    const checkbox = page.locator('input[aria-label*="Toggle completion"]').first();
     await checkbox.check();
     await expect(page.locator('text=Completed')).toBeVisible();
     await expect(page.getByText('Finish report')).toBeVisible();

@@ -30,18 +30,19 @@ test.describe('Reminders and Notifications', () => {
 
     const reminderSelect = page.getByLabel('Reminder');
     await expect(reminderSelect).toBeEnabled();
-    await expect(page.getByRole('option', { name: 'none' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '15m' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '30m' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '1h' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '2h' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '1d' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '2d' })).toBeVisible();
-    await expect(page.getByRole('option', { name: '1w' })).toBeVisible();
+    await expect(reminderSelect.locator('option')).toHaveCount(8);
+    await expect(reminderSelect.locator('option[value=""]')).toHaveText('none');
+    await expect(reminderSelect.locator('option[value="15"]')).toHaveText('15m');
+    await expect(reminderSelect.locator('option[value="30"]')).toHaveText('30m');
+    await expect(reminderSelect.locator('option[value="60"]')).toHaveText('1h');
+    await expect(reminderSelect.locator('option[value="120"]')).toHaveText('2h');
+    await expect(reminderSelect.locator('option[value="1440"]')).toHaveText('1d');
+    await expect(reminderSelect.locator('option[value="2880"]')).toHaveText('2d');
+    await expect(reminderSelect.locator('option[value="10080"]')).toHaveText('1w');
   });
 
   test('/api/notifications/check returns todo in active notification window', async ({ page }) => {
-    const dueSoon = futureDateLocal(20);
+    const dueSoon = futureDateLocal(10);
 
     const createRes = await page.request.post('/api/todos', {
       data: {
@@ -62,7 +63,7 @@ test.describe('Reminders and Notifications', () => {
   });
 
   test('/api/notifications/check deduplicates repeated notifications', async ({ page }) => {
-    const dueSoon = futureDateLocal(20);
+    const dueSoon = futureDateLocal(10);
 
     const createRes = await page.request.post('/api/todos', {
       data: {

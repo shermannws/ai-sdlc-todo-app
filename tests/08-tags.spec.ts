@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { TestHelpers } from './helpers';
+import { TodoAppHelper, uniqueUser } from './helpers';
 
 test.describe('08 — Tag System', () => {
-  let helpers: TestHelpers;
+  let helpers: TodoAppHelper;
 
   test.beforeEach(async ({ page }) => {
-    helpers = new TestHelpers(page);
-    await helpers.register();
+    helpers = new TodoAppHelper(page);
+    await helpers.signInDirectly(uniqueUser('tags'));
   });
 
   test('create tag via Manage Tags modal → tag appears in list', async ({ page }) => {
@@ -30,10 +30,10 @@ test.describe('08 — Tag System', () => {
     // Edit tag name
     await page.getByRole('button', { name: /manage tags/i }).click();
     await page.getByRole('button', { name: /edit tag OldName/i }).click();
-    await page.getByRole('textbox').last().clear();
-    await page.getByRole('textbox').last().fill('NewName');
+    await page.getByLabel('Rename tag').clear();
+    await page.getByLabel('Rename tag').fill('NewName');
     await page.getByRole('button', { name: /save/i }).click();
-    await expect(page.getByText('NewName')).toBeVisible();
+    await expect(page.getByText('NewName').first()).toBeVisible();
   });
 
   test('delete tag → removed from all todos', async ({ page }) => {
@@ -52,6 +52,7 @@ test.describe('08 — Tag System', () => {
     // Delete tag
     await page.getByRole('button', { name: /manage tags/i }).click();
     await page.getByRole('button', { name: /delete tag ToDelete/i }).click();
+    await page.getByRole('button', { name: 'Close' }).click();
 
     // Tag should be gone from modal and todo
     await expect(page.getByText('ToDelete')).not.toBeVisible();
@@ -93,7 +94,8 @@ test.describe('08 — Tag System', () => {
     await page.getByRole('combobox', { name: /add tag/i }).selectOption({ label: 'Idem' });
 
     // Direct API call to attach again
-    const response = await page.request.post('/api/todos/' + await page.locator('[data-todo-id]').first().getAttribute('data-todo-id') + '/tags', {
+    const todoId = await page.locator('[data-todo-id]').first().getAttribute('data-todo-id');
+    const response = await page.request.post(`/api/todos/${todoId}/tags`, {
       data: { tagId: 1 },
     });
     // Should succeed or tag endpoint handles idempotency

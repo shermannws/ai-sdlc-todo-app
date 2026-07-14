@@ -46,7 +46,7 @@ function getSingaporeNowLocalISO(): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
-export interface FilterState {
+interface FilterState {
   search: string;
   priority: Priority | '';
   tagId: number | null;
@@ -55,7 +55,7 @@ export interface FilterState {
   dueDateTo: string | null;
 }
 
-export const DEFAULT_FILTER: FilterState = {
+const DEFAULT_FILTER: FilterState = {
   search: '',
   priority: '',
   tagId: null,
@@ -64,7 +64,7 @@ export const DEFAULT_FILTER: FilterState = {
   dueDateTo: null,
 };
 
-export interface FilterPreset {
+interface FilterPreset {
   id: string;
   name: string;
   filters: FilterState;
@@ -118,7 +118,7 @@ function savePresets(presets: FilterPreset[]): void {
   }
 }
 
-export function applyFilters(todos: Todo[], filters: FilterState): Todo[] {
+function applyFilters(todos: Todo[], filters: FilterState): Todo[] {
   let result = todos;
 
   if (filters.search.trim()) {
@@ -225,6 +225,7 @@ function TodoItem({
 
   return (
     <div
+      data-todo-id={todo.id}
       className={`p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg flex items-start gap-3 ${
         todo.completed ? 'opacity-60' : ''
       }`}
@@ -455,8 +456,6 @@ function Section({
               onToggleSubtask={onToggleSubtask}
               onDeleteSubtask={onDeleteSubtask}
               allTags={allTags}
-              onToggle={onToggle}
-              onDelete={onDelete}
               onAttachTag={onAttachTag}
               onDetachTag={onDetachTag}
             />
@@ -1302,6 +1301,7 @@ export default function HomePage() {
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
+                        aria-label="Rename tag"
                         className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
                         maxLength={50}
                       />
@@ -1451,10 +1451,11 @@ export default function HomePage() {
                 <p className="text-sm text-red-500">{templateFormError}</p>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="template-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Template name *
                 </label>
                 <input
+                  id="template-name"
                   type="text"
                   value={templateForm.name}
                   onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
@@ -1486,10 +1487,11 @@ export default function HomePage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="template-title-template" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Todo title template *
                 </label>
                 <input
+                  id="template-title-template"
                   type="text"
                   value={templateForm.title_template}
                   onChange={(e) => setTemplateForm((f) => ({ ...f, title_template: e.target.value }))}
@@ -1681,6 +1683,7 @@ export default function HomePage() {
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
             />
             <select
+              aria-label="Priority"
               value={newPriority}
               onChange={(e) => setNewPriority(e.target.value as Priority)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
