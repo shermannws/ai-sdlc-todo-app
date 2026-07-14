@@ -65,9 +65,20 @@ export class TodoAppHelper {
     throw new Error('createTag not implemented yet — see feature/tags branch');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async createTemplate(_name: string, _opts?: object): Promise<void> {
-    throw new Error('createTemplate not implemented yet — see feature/templates branch');
+  async createTemplate(
+    name: string,
+    opts?: { titleTemplate?: string; category?: string }
+  ): Promise<void> {
+    await this.page.getByRole('button', { name: /New Template/i }).click();
+    await this.page.getByLabel('Template name *').fill(name);
+    await this.page
+      .getByLabel('Todo title template *')
+      .fill(opts?.titleTemplate ?? name);
+    if (opts?.category) {
+      await this.page.getByLabel('Category').fill(opts.category);
+    }
+    await this.page.getByRole('button', { name: 'Create' }).click();
+    await this.page.getByText(name).waitFor({ timeout: 5_000 });
   }
 }
 
