@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export class TodoAppHelper {
   constructor(private page: Page) {}
@@ -55,9 +55,12 @@ export class TodoAppHelper {
 
   // ── Stubs for feature branches ────────────────────────────────────────────
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async addSubtask(_todoTitle: string, _subtaskTitle: string): Promise<void> {
-    throw new Error('addSubtask not implemented yet — see feature/subtasks branch');
+  async addSubtask(todoTitle: string, subtaskTitle: string): Promise<void> {
+    const todoCard = this.page.locator('div', { hasText: todoTitle }).first();
+    await todoCard.getByRole('button', { name: new RegExp(`Toggle subtasks for ${todoTitle}`) }).click();
+    await todoCard.getByLabel(`Add subtask for ${todoTitle}`).fill(subtaskTitle);
+    await todoCard.getByRole('button', { name: 'Add' }).click();
+    await expect(this.page.getByText(subtaskTitle)).toBeVisible({ timeout: 5_000 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -65,9 +68,20 @@ export class TodoAppHelper {
     throw new Error('createTag not implemented yet — see feature/tags branch');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async createTemplate(_name: string, _opts?: object): Promise<void> {
-    throw new Error('createTemplate not implemented yet — see feature/templates branch');
+  async createTemplate(
+    name: string,
+    opts?: { titleTemplate?: string; category?: string }
+  ): Promise<void> {
+    await this.page.getByRole('button', { name: /New Template/i }).click();
+    await this.page.getByLabel('Template name *').fill(name);
+    await this.page
+      .getByLabel('Todo title template *')
+      .fill(opts?.titleTemplate ?? name);
+    if (opts?.category) {
+      await this.page.getByLabel('Category').fill(opts.category);
+    }
+    await this.page.getByRole('button', { name: 'Create' }).click();
+    await this.page.getByText(name).waitFor({ timeout: 5_000 });
   }
 }
 

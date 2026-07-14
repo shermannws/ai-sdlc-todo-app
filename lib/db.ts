@@ -289,6 +289,11 @@ export const subtaskDB = {
     const rows = db.prepare('SELECT * FROM subtasks WHERE todo_id = ? ORDER BY position ASC').all(todoId);
     return rows.map(mapSubtask);
   },
+  findById: (id: number): Subtask | undefined => {
+    const row = db.prepare('SELECT * FROM subtasks WHERE id = ?').get(id);
+    if (!row) return undefined;
+    return mapSubtask(row);
+  },
   create: (data: { todoId: number; title: string; position: number }): Subtask => {
     const result = db
       .prepare('INSERT INTO subtasks (todo_id, title, position) VALUES (?, ?, ?)')
