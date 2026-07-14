@@ -88,7 +88,7 @@ export interface Holiday {
 
 const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), 'todos.db');
 
-const db = new Database(DB_PATH);
+const db = new Database(DB_PATH, { timeout: 5000 });
 
 // CRITICAL: enable FK enforcement every connection
 db.pragma('foreign_keys = ON');
