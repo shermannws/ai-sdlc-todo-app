@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Todo, Priority } from '@/lib/db';
+import type { Todo, Priority, RecurrencePattern } from '@/lib/db';
+import { useNotifications } from '@/lib/hooks/useNotifications';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,36 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 };
 
 const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+const REMINDER_LABELS: Record<number, string> = {
+  15: '15m',
+  30: '30m',
+  60: '1h',
+  120: '2h',
+  1440: '1d',
+  2880: '2d',
+  10080: '1w',
+};
+
+function getReminderLabel(minutes: number | null): string | null {
+  if (!minutes) return null;
+  return REMINDER_LABELS[minutes] ?? `${minutes}m`;
+}
+
+function getSingaporeNowLocalISO(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
+}
 
 // ─── Sort comparator (priority → due_date → created_at) ──────────────────────
 
@@ -76,7 +107,16 @@ function TodoItem({
             {todo.title}
           </span>
           <PriorityBadge priority={todo.priority} />
-          {/* ===== FEATURE: recurring-reminders — insert recurrence/reminder badges here ===== */}
+          {todo.is_recurring && todo.recurrence_pattern && (
+            <span className="px-2 py-0.5 rounded-full text-xs text-white font-medium bg-[#A855F7] dark:bg-[#C084FC]">
+              🔄 {todo.recurrence_pattern}
+            </span>
+          )}
+          {todo.reminder_minutes && (
+            <span className="px-2 py-0.5 rounded-full text-xs text-white font-medium bg-amber-500 dark:bg-amber-400">
+              🔔 {getReminderLabel(todo.reminder_minutes)}
+            </span>
+          )}
           {/* ===== FEATURE: tags — insert tag chips here ===== */}
         </div>
         {todo.due_date && (
@@ -149,10 +189,14 @@ export default function HomePage() {
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('medium');
 
-  // ===== FEATURE: recurring-reminders — insert recurrence/reminder state here =====
+  const [newIsRecurring, setNewIsRecurring] = useState(false);
+  const [newRecurrencePattern, setNewRecurrencePattern] = useState<RecurrencePattern>('daily');
+  const [newReminderMinutes, setNewReminderMinutes] = useState('');
   // ===== FEATURE: search-filtering — insert filter state here =====
   // ===== FEATURE: tags — insert tag state here =====
   // ===== FEATURE: templates — insert template state here =====
+
+  useNotifications();
 
   useEffect(() => {
     checkAuth();
@@ -191,6 +235,16 @@ export default function HomePage() {
 
     setFormError(null);
 
+    if (newIsRecurring && !newDueDate) {
+      setFormError('Recurring todos require a due date');
+      return;
+    }
+
+    if (newReminderMinutes && !newDueDate) {
+      setFormError('Reminder requires a due date');
+      return;
+    }
+
     const res = await fetch('/api/todos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,6 +252,9 @@ export default function HomePage() {
         title: trimmed,
         due_date: newDueDate || null,
         priority: newPriority,
+        is_recurring: newIsRecurring,
+        recurrence_pattern: newIsRecurring ? newRecurrencePattern : null,
+        reminder_minutes: newReminderMinutes ? Number(newReminderMinutes) : null,
       }),
     });
 
@@ -207,6 +264,9 @@ export default function HomePage() {
       setNewTitle('');
       setNewDueDate('');
       setNewPriority('medium');
+      setNewIsRecurring(false);
+      setNewRecurrencePattern('daily');
+      setNewReminderMinutes('');
     } else {
       const data = await res.json();
       setFormError(data.error ?? 'Failed to create todo');
@@ -257,7 +317,7 @@ export default function HomePage() {
     );
   }
 
-  const now = new Date().toISOString();
+  const now = getSingaporeNowLocalISO();
   const overdue = todos.filter((t) => !t.completed && t.due_date && t.due_date < now).sort(sortTodos);
   const pending = todos.filter((t) => !t.completed && (!t.due_date || t.due_date >= now)).sort(sortTodos);
   const completed = todos.filter((t) => t.completed).sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -311,7 +371,11 @@ export default function HomePage() {
             <input
               type="datetime-local"
               value={newDueDate}
-              onChange={(e) => setNewDueDate(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNewDueDate(value);
+                if (!value) setNewReminderMinutes('');
+              }}
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
             />
             <select
@@ -324,7 +388,52 @@ export default function HomePage() {
               <option value="low">Low</option>
             </select>
           </div>
-          {/* ===== FEATURE: recurring-reminders — insert recurrence/reminder form fields here ===== */}
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={newIsRecurring}
+                onChange={(e) => setNewIsRecurring(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+              />
+              Repeat
+            </label>
+            {newIsRecurring && (
+              <select
+                aria-label="Repeat pattern"
+                value={newRecurrencePattern}
+                onChange={(e) => setNewRecurrencePattern(e.target.value as RecurrencePattern)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+              >
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="monthly">monthly</option>
+                <option value="yearly">yearly</option>
+              </select>
+            )}
+          </div>
+          <div>
+            <label htmlFor="reminder-select" className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+              Reminder
+            </label>
+            <select
+              id="reminder-select"
+              aria-label="Reminder"
+              value={newReminderMinutes}
+              onChange={(e) => setNewReminderMinutes(e.target.value)}
+              disabled={!newDueDate}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white disabled:bg-gray-100 dark:bg-gray-700 dark:disabled:bg-gray-800 text-sm disabled:text-gray-400"
+            >
+              <option value="">none</option>
+              <option value="15">15m</option>
+              <option value="30">30m</option>
+              <option value="60">1h</option>
+              <option value="120">2h</option>
+              <option value="1440">1d</option>
+              <option value="2880">2d</option>
+              <option value="10080">1w</option>
+            </select>
+          </div>
         </div>
         <button
           type="submit"

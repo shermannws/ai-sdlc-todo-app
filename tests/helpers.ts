@@ -79,7 +79,15 @@ export function uniqueUser(prefix = 'user'): string {
 /** Returns a datetime-local string N minutes from now (Singapore UTC+8). */
 export function futureDateLocal(minutesFromNow = 60): string {
   const d = new Date(Date.now() + minutesFromNow * 60 * 1000);
-  // Format as YYYY-MM-DDTHH:MM (datetime-local input format)
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }

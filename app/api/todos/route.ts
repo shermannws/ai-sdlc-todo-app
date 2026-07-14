@@ -3,6 +3,19 @@ import type { NextRequest } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { todoDB } from '@/lib/db';
 import { getSingaporeNow } from '@/lib/timezone';
+import type { RecurrencePattern, ReminderMinutes } from '@/lib/db';
+
+const ALLOWED_RECURRENCE_PATTERNS: RecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly'];
+const ALLOWED_REMINDER_MINUTES: ReminderMinutes[] = [15, 30, 60, 120, 1440, 2880, 10080];
+
+function parseDueDateInSingapore(value: string): Date {
+  const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(value);
+  const parsed = new Date(hasOffset ? value : `${value}+08:00`);
+  if (isNaN(parsed.getTime())) {
+    throw new Error('Invalid due date format');
+  }
+  return parsed;
+}
 
 export async function GET() {
   const session = await getSession();
@@ -30,8 +43,10 @@ export async function POST(request: NextRequest) {
 
   let dueDate: string | null = null;
   if (body.due_date) {
-    const dueDateObj = new Date(body.due_date);
-    if (isNaN(dueDateObj.getTime())) {
+    let dueDateObj: Date;
+    try {
+      dueDateObj = parseDueDateInSingapore(body.due_date);
+    } catch {
       return NextResponse.json({ error: 'Invalid due date format' }, { status: 400 });
     }
     const minDate = new Date(getSingaporeNow().getTime() + 60 * 1000);
@@ -41,11 +56,51 @@ export async function POST(request: NextRequest) {
     dueDate = body.due_date;
   }
 
+  const isRecurring = body.is_recurring === true;
+  let recurrencePattern: RecurrencePattern | null = null;
+  if (isRecurring) {
+    if (!dueDate) {
+      return NextResponse.json({ error: 'Recurring todos require a due date' }, { status: 400 });
+    }
+
+    if (
+      typeof body.recurrence_pattern !== 'string' ||
+      !ALLOWED_RECURRENCE_PATTERNS.includes(body.recurrence_pattern as RecurrencePattern)
+    ) {
+      return NextResponse.json(
+        { error: 'recurrence_pattern is required and must be daily, weekly, monthly, or yearly' },
+        { status: 400 }
+      );
+    }
+
+    recurrencePattern = body.recurrence_pattern as RecurrencePattern;
+  }
+
+  let reminderMinutes: ReminderMinutes | null = null;
+  if (body.reminder_minutes !== undefined && body.reminder_minutes !== null) {
+    const reminder = Number(body.reminder_minutes);
+    if (!ALLOWED_REMINDER_MINUTES.includes(reminder as ReminderMinutes)) {
+      return NextResponse.json(
+        { error: 'Invalid reminder_minutes. Allowed values: 15, 30, 60, 120, 1440, 2880, 10080' },
+        { status: 400 }
+      );
+    }
+
+    if (!dueDate) {
+      return NextResponse.json({ error: 'reminder_minutes requires due_date' }, { status: 400 });
+    }
+
+    reminderMinutes = reminder as ReminderMinutes;
+  }
+
   const todo = todoDB.create({
     userId: session.userId,
     title,
     dueDate,
     priority,
+    isRecurring,
+    recurrencePattern,
+    reminderMinutes,
   });
 
   return NextResponse.json(todo, { status: 201 });
