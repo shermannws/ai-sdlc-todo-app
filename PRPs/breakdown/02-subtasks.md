@@ -194,3 +194,22 @@ This is an additive change to `lib/db.ts` — no schema changes needed.
 - `lib/db.ts` (additive — subtask JOIN in `todoDB.findByUserId`; may conflict with `feature/tags` which does the same for tags JOIN — see post-merge resolution)
 - `app/page.tsx` (additive to stub section — potential conflict at merge time)
 - `tests/07-subtasks.spec.ts` (new file — no conflict)
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: subtasks and progress tracking"
+
+# Push and set upstream (first push of this feature branch)
+git push -u origin feature/subtasks
+```
+
+If you made incremental commits during development, push with the same command — `-u` only needs to be used once but is safe to repeat.

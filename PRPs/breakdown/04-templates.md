@@ -268,3 +268,22 @@ Always parse with `JSON.parse()` and handle null safely. On create/edit, always 
 - `app/api/templates/[id]/use/route.ts` (new file — no conflict)
 - `app/page.tsx` (additive to stub section — potential conflict at merge time)
 - `tests/09-templates.spec.ts` (new file — no conflict)
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: template system with subtask capture and use endpoint"
+
+# Push and set upstream (first push of this feature branch)
+git push -u origin feature/templates
+```
+
+If you made incremental commits during development, push with the same command — `-u` only needs to be used once but is safe to repeat.

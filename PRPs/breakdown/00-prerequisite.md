@@ -629,3 +629,22 @@ git checkout -b feature/<your-feature-name>
 ```
 
 Your branch will have all the DB interfaces, types, auth helpers, and the page shell ready to use. Do not modify `lib/db.ts` schema — all tables already exist. You may add new methods to the relevant DB objects.
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: project foundation — schema, auth, base todo CRUD and priority"
+
+# Push and set upstream (first push of the develop branch)
+git push -u origin develop
+```
+
+Verify the push succeeded and the remote branch is visible before notifying feature branch developers to cut their branches from `develop`.

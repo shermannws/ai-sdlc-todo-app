@@ -379,3 +379,22 @@ for (const h of holidays) {
 - `app/page.tsx` (additive to stub section — potential conflict at merge time)
 - `tests/11-export-import.spec.ts` (new file — no conflict)
 - `tests/12-calendar.spec.ts` (new file — no conflict)
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: export/import and calendar view with holidays"
+
+# Push and set upstream (first push of this feature branch)
+git push -u origin feature/export-calendar
+```
+
+If you made incremental commits during development, push with the same command — `-u` only needs to be used once but is safe to repeat.

@@ -294,3 +294,22 @@ const completed = visibleTodos.filter(t => t.completed);
 - `tests/10-search-filtering.spec.ts` (new file — no conflict)
 
 **No API files modified.** This is the easiest branch to merge.
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: client-side search and filtering with localStorage presets"
+
+# Push and set upstream (first push of this feature branch)
+git push -u origin feature/search-filtering
+```
+
+If you made incremental commits during development, push with the same command — `-u` only needs to be used once but is safe to repeat.

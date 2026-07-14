@@ -235,3 +235,22 @@ This is the same additive change as `feature/subtasks` — see Merge Notes.
 - `lib/db.ts` (additive — tag JOIN in `todoDB.findByUserId`; conflicts with `feature/subtasks` which does same for subtasks — see post-merge resolution)
 - `app/page.tsx` (additive to stub section — potential conflict at merge time)
 - `tests/08-tags.spec.ts` (new file — no conflict)
+
+---
+
+## Git Commit & Push
+
+Once the Definition of Done checklist above is fully satisfied:
+
+```bash
+# Stage all changes
+git add .
+
+# Commit with conventional commit format
+git commit -m "feat: tag system with attach/detach and manage tags modal"
+
+# Push and set upstream (first push of this feature branch)
+git push -u origin feature/tags
+```
+
+If you made incremental commits during development, push with the same command — `-u` only needs to be used once but is safe to repeat.
