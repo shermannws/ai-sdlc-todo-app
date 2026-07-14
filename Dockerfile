@@ -37,7 +37,6 @@ RUN mkdir -p /data && chown nextjs:nodejs /data
 # Copy standalone Next.js output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static   ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public         ./public
 
 # better-sqlite3 native module must come from the builder's node_modules
 # (compiled for the same platform/arch as the runner)
