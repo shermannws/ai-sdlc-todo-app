@@ -308,6 +308,40 @@ npm start
 
 ---
 
+## Implementation
+
+### Setup
+
+Before merging all branches, ensure dependencies are installed:
+
+```bash
+npm i
+```
+
+Verify the dev server starts:
+
+```bash
+npm run dev
+```
+
+Run all tests:
+
+```bash
+npx playwright test --ui
+```
+
+### Verification
+
+Before merging to `main`, verify everything passes:
+
+```bash
+npm run build
+npm run lint
+npx playwright test  # full suite
+```
+
+---
+
 ## Definition of Done (full app)
 
 - [ ] All 8 tables created with `PRAGMA foreign_keys = ON`

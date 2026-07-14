@@ -247,6 +247,43 @@ Always parse with `JSON.parse()` and handle null safely. On create/edit, always 
 
 ---
 
+## Implementation
+
+### Setup
+
+Create your feature branch and install dependencies:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/templates
+npm i  # Already installed on develop, but run to be safe
+```
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+Run tests while developing:
+
+```bash
+npx playwright test --ui
+```
+
+### Verification
+
+Before committing, verify everything passes:
+
+```bash
+npm run build
+npm run lint
+npx playwright test
+```
+
+---
+
 ## Definition of Done
 
 - [ ] All 6 API routes implemented with ownership checks

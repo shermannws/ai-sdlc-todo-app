@@ -603,6 +603,40 @@ export class TodoAppHelper {
 
 ---
 
+## Implementation
+
+### Setup
+
+Before writing code, install dependencies:
+
+```bash
+npm i
+```
+
+Then start the dev server:
+
+```bash
+npm run dev
+```
+
+Run tests while developing:
+
+```bash
+npx playwright test --ui
+```
+
+### Verification
+
+Before committing, verify everything passes:
+
+```bash
+npm run build  # TypeScript + Next.js compilation
+npm run lint   # ESLint check
+npx playwright test  # E2E tests
+```
+
+---
+
 ## Definition of Done
 
 - [ ] `npm install` succeeds

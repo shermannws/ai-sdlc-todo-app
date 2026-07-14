@@ -239,6 +239,43 @@ Apply in both `POST /api/todos` and `PUT /api/todos/[id]` — the prerequisite b
 
 ---
 
+## Implementation
+
+### Setup
+
+Create your feature branch and install dependencies:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/recurring-reminders
+npm i  # Already installed on develop, but run to be safe
+```
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+Run tests while developing:
+
+```bash
+npx playwright test --ui
+```
+
+### Verification
+
+Before committing, verify everything passes:
+
+```bash
+npm run build
+npm run lint
+npx playwright test
+```
+
+---
+
 ## Definition of Done
 
 - [ ] `calculateNextDueDate` passes all edge cases (Jan 31→Feb 28/29, Feb 29→Feb 28, Dec 31→Jan 31)

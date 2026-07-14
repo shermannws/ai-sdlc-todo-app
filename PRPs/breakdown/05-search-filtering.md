@@ -297,6 +297,43 @@ const completed = visibleTodos.filter(t => t.completed);
 
 ---
 
+## Implementation
+
+### Setup
+
+Create your feature branch and install dependencies:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/search-filtering
+npm i  # Already installed on develop, but run to be safe
+```
+
+Start the dev server:
+
+```bash
+npm run dev
+```
+
+Run tests while developing:
+
+```bash
+npx playwright test --ui
+```
+
+### Verification
+
+Before committing, verify everything passes:
+
+```bash
+npm run build
+npm run lint
+npx playwright test
+```
+
+---
+
 ## Git Commit & Push
 
 Once the Definition of Done checklist above is fully satisfied:
