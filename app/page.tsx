@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Todo, Priority, Template, RecurrencePattern, Subtask } from '@/lib/db';
+import type { Todo, Tag, Priority, Template, RecurrencePattern, Subtask } from '@/lib/db';
 import { useNotifications } from '@/lib/hooks/useNotifications';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -79,6 +79,7 @@ function PriorityBadge({ priority }: { priority: Priority }) {
 
 function TodoItem({
   todo,
+  allTags,
   onToggle,
   onDelete,
   isExpanded,
@@ -88,8 +89,11 @@ function TodoItem({
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  onAttachTag,
+  onDetachTag,
 }: {
   todo: Todo;
+  allTags: Tag[];
   onToggle: (todo: Todo) => void;
   onDelete: (id: number) => void;
   isExpanded: boolean;
@@ -99,7 +103,11 @@ function TodoItem({
   onAddSubtask: (todoId: number) => void;
   onToggleSubtask: (subtask: Subtask) => void;
   onDeleteSubtask: (subtaskId: number) => void;
+  onAttachTag: (todoId: number, tagId: number) => void;
+  onDetachTag: (todoId: number, tagId: number) => void;
 }) {
+  const attachedIds = new Set((todo.tags ?? []).map((t) => t.id));
+  const unattached = allTags.filter((t) => !attachedIds.has(t.id));
   const subtasks = todo.subtasks ?? [];
   const completedCount = subtasks.filter((subtask) => subtask.completed).length;
   const totalCount = subtasks.length;
@@ -138,7 +146,40 @@ function TodoItem({
               🔔 {getReminderLabel(todo.reminder_minutes)}
             </span>
           )}
-          {/* ===== FEATURE: tags — insert tag chips here ===== */}
+          {(todo.tags ?? []).map((tag) => (
+            <span
+              key={tag.id}
+              style={{ backgroundColor: tag.color }}
+              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs text-white"
+            >
+              {tag.name}
+              <button
+                onClick={() => onDetachTag(todo.id, tag.id)}
+                className="ml-0.5 hover:opacity-70"
+                aria-label={`Remove tag ${tag.name}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {unattached.length > 0 && (
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  onAttachTag(todo.id, parseInt(e.target.value, 10));
+                  e.target.value = '';
+                }
+              }}
+              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700"
+              aria-label="Add tag to todo"
+            >
+              <option value="">+ tag</option>
+              {unattached.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
         </div>
         {todo.due_date && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -250,6 +291,7 @@ function Section({
   title,
   titleClass,
   todos,
+  allTags,
   onToggle,
   onDelete,
   expandedTodos,
@@ -259,11 +301,14 @@ function Section({
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  onAttachTag,
+  onDetachTag,
   emptyMessage,
 }: {
   title: string;
   titleClass: string;
   todos: Todo[];
+  allTags: Tag[];
   onToggle: (todo: Todo) => void;
   onDelete: (id: number) => void;
   expandedTodos: Set<number>;
@@ -273,6 +318,8 @@ function Section({
   onAddSubtask: (todoId: number) => void;
   onToggleSubtask: (subtask: Subtask) => void;
   onDeleteSubtask: (subtaskId: number) => void;
+  onAttachTag: (todoId: number, tagId: number) => void;
+  onDetachTag: (todoId: number, tagId: number) => void;
   emptyMessage?: string;
 }) {
   return (
@@ -297,6 +344,11 @@ function Section({
               onAddSubtask={onAddSubtask}
               onToggleSubtask={onToggleSubtask}
               onDeleteSubtask={onDeleteSubtask}
+              allTags={allTags}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onAttachTag={onAttachTag}
+              onDetachTag={onDetachTag}
             />
           ))}
         </div>
@@ -325,7 +377,16 @@ export default function HomePage() {
   const [newRecurrencePattern, setNewRecurrencePattern] = useState<RecurrencePattern>('daily');
   const [newReminderMinutes, setNewReminderMinutes] = useState('');
   // ===== FEATURE: search-filtering — insert filter state here =====
-  // ===== FEATURE: tags — insert tag state here =====
+  // ===== FEATURE: tags =====
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [showManageTags, setShowManageTags] = useState(false);
+  const [tagFormName, setTagFormName] = useState('');
+  const [tagFormColor, setTagFormColor] = useState('#3B82F6');
+  const [tagFormError, setTagFormError] = useState<string | null>(null);
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('');
+
 
   // Template state
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -379,6 +440,7 @@ export default function HomePage() {
       setUsername(data.username);
       await fetchTodos();
       await fetchTemplates();
+      await fetchTags();
     } catch {
       router.push('/login');
     } finally {
@@ -494,6 +556,74 @@ export default function HomePage() {
     if (res.ok) {
       await fetchTodos();
     }
+  }
+
+  async function fetchTags() {
+    const res = await fetch('/api/tags');
+    if (res.ok) {
+      const data: Tag[] = await res.json();
+      setTags(data);
+    }
+  }
+
+  async function handleCreateTag(e: React.FormEvent) {
+    e.preventDefault();
+    setTagFormError(null);
+    const res = await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: tagFormName, color: tagFormColor }),
+    });
+    if (res.ok) {
+      await fetchTags();
+      setTagFormName('');
+      setTagFormColor('#3B82F6');
+    } else {
+      const data = await res.json();
+      setTagFormError(data.error ?? 'Failed to create tag');
+    }
+  }
+
+  async function handleUpdateTag(tag: Tag) {
+    const res = await fetch(`/api/tags/${tag.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName, color: editColor }),
+    });
+    if (res.ok) {
+      await fetchTags();
+      await fetchTodos();
+      setEditingTag(null);
+    } else {
+      const data = await res.json();
+      setTagFormError(data.error ?? 'Failed to update tag');
+    }
+  }
+
+  async function handleDeleteTag(id: number) {
+    const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await fetchTags();
+      await fetchTodos();
+    }
+  }
+
+  async function handleAttachTag(todoId: number, tagId: number) {
+    const res = await fetch(`/api/todos/${todoId}/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagId }),
+    });
+    if (res.ok) await fetchTodos();
+  }
+
+  async function handleDetachTag(todoId: number, tagId: number) {
+    const res = await fetch(`/api/todos/${todoId}/tags`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tagId }),
+    });
+    if (res.ok) await fetchTodos();
   }
 
   async function handleAddTodo(e: React.FormEvent) {
@@ -739,7 +869,124 @@ export default function HomePage() {
 
       {/* ===== FEATURE: search-filtering — insert search/filter panel here ===== */}
 
-      {/* ===== FEATURE: tags — insert Manage Tags button + modal here ===== */}
+      {/* Manage Tags */}
+      <div className="mb-4">
+        <button
+          onClick={() => { setShowManageTags(true); setTagFormError(null); }}
+          className="text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        >
+          🏷 Manage Tags
+        </button>
+      </div>
+
+      {showManageTags && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Manage Tags</h2>
+              <button
+                onClick={() => { setShowManageTags(false); setEditingTag(null); setTagFormError(null); }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {tagFormError && (
+              <p className="text-sm text-red-500 mb-3">{tagFormError}</p>
+            )}
+
+            {/* Existing tags */}
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {tags.length === 0 && (
+                <p className="text-sm text-gray-400">No tags yet.</p>
+              )}
+              {tags.map((tag) => (
+                <div key={tag.id} className="flex items-center gap-2">
+                  {editingTag?.id === tag.id ? (
+                    <>
+                      <input
+                        type="color"
+                        value={editColor}
+                        onChange={(e) => setEditColor(e.target.value)}
+                        className="h-7 w-7 rounded cursor-pointer border-0 p-0"
+                      />
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                        maxLength={50}
+                      />
+                      <button
+                        onClick={() => handleUpdateTag(tag)}
+                        className="text-sm px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setEditingTag(null); setTagFormError(null); }}
+                        className="text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        style={{ backgroundColor: tag.color }}
+                        className="h-5 w-5 rounded-full flex-shrink-0"
+                      />
+                      <span className="flex-1 text-sm">{tag.name}</span>
+                      <button
+                        onClick={() => { setEditingTag(tag); setEditName(tag.name); setEditColor(tag.color); setTagFormError(null); }}
+                        className="text-gray-400 hover:text-blue-500 text-sm px-1"
+                        aria-label={`Edit tag ${tag.name}`}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTag(tag.id)}
+                        className="text-gray-400 hover:text-red-500 text-sm px-1"
+                        aria-label={`Delete tag ${tag.name}`}
+                      >
+                        🗑
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add tag form */}
+            <form onSubmit={handleCreateTag} className="flex items-center gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <input
+                type="color"
+                value={tagFormColor}
+                onChange={(e) => setTagFormColor(e.target.value)}
+                className="h-8 w-8 rounded cursor-pointer border-0 p-0"
+                aria-label="Tag color"
+              />
+              <input
+                type="text"
+                value={tagFormName}
+                onChange={(e) => { setTagFormName(e.target.value); setTagFormError(null); }}
+                placeholder="Tag name…"
+                maxLength={50}
+                className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                required
+              />
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              >
+                Create
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Templates Section */}
       <div className="mb-6">
@@ -1118,6 +1365,7 @@ export default function HomePage() {
           title="Overdue"
           titleClass="text-red-600 dark:text-red-400"
           todos={overdue}
+          allTags={tags}
           onToggle={handleToggle}
           onDelete={handleDelete}
           expandedTodos={expandedTodos}
@@ -1127,6 +1375,8 @@ export default function HomePage() {
           onAddSubtask={handleAddSubtask}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={handleDeleteSubtask}
+          onAttachTag={handleAttachTag}
+          onDetachTag={handleDetachTag}
         />
       )}
 
@@ -1134,6 +1384,7 @@ export default function HomePage() {
         title="Pending"
         titleClass="text-gray-700 dark:text-gray-300"
         todos={pending}
+        allTags={tags}
         onToggle={handleToggle}
         onDelete={handleDelete}
         expandedTodos={expandedTodos}
@@ -1143,6 +1394,8 @@ export default function HomePage() {
         onAddSubtask={handleAddSubtask}
         onToggleSubtask={handleToggleSubtask}
         onDeleteSubtask={handleDeleteSubtask}
+        onAttachTag={handleAttachTag}
+        onDetachTag={handleDetachTag}
         emptyMessage="No pending todos — you're all caught up!"
       />
 
@@ -1151,6 +1404,7 @@ export default function HomePage() {
           title="Completed"
           titleClass="text-green-600 dark:text-green-400"
           todos={completed}
+          allTags={tags}
           onToggle={handleToggle}
           onDelete={handleDelete}
           expandedTodos={expandedTodos}
@@ -1160,6 +1414,8 @@ export default function HomePage() {
           onAddSubtask={handleAddSubtask}
           onToggleSubtask={handleToggleSubtask}
           onDeleteSubtask={handleDeleteSubtask}
+          onAttachTag={handleAttachTag}
+          onDetachTag={handleDetachTag}
         />
       )}
     </div>
