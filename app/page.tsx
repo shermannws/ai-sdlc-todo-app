@@ -46,6 +46,115 @@ function getSingaporeNowLocalISO(): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
+export interface FilterState {
+  search: string;
+  priority: Priority | '';
+  tagId: number | null;
+  completion: 'all' | 'active' | 'completed';
+  dueDateFrom: string | null;
+  dueDateTo: string | null;
+}
+
+export const DEFAULT_FILTER: FilterState = {
+  search: '',
+  priority: '',
+  tagId: null,
+  completion: 'all',
+  dueDateFrom: null,
+  dueDateTo: null,
+};
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: FilterState;
+  createdAt: string;
+}
+
+const FILTER_PRESETS_KEY = 'todo-app:filter-presets';
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+function loadPresets(): FilterPreset[] {
+  try {
+    if (typeof window === 'undefined') return [];
+
+    const raw = localStorage.getItem(FILTER_PRESETS_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((preset): preset is FilterPreset => {
+      return Boolean(
+        preset &&
+          typeof preset === 'object' &&
+          typeof preset.id === 'string' &&
+          typeof preset.name === 'string' &&
+          typeof preset.createdAt === 'string' &&
+          typeof preset.filters === 'object'
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function savePresets(presets: FilterPreset[]): void {
+  try {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(FILTER_PRESETS_KEY, JSON.stringify(presets));
+  } catch {
+    // Presets are non-critical and should not break the page.
+  }
+}
+
+export function applyFilters(todos: Todo[], filters: FilterState): Todo[] {
+  let result = todos;
+
+  if (filters.search.trim()) {
+    const query = filters.search.trim().toLowerCase();
+    result = result.filter(
+      (todo) =>
+        todo.title.toLowerCase().includes(query) ||
+        (todo.subtasks ?? []).some((subtask) => subtask.title.toLowerCase().includes(query))
+    );
+  }
+
+  if (filters.priority) {
+    result = result.filter((todo) => todo.priority === filters.priority);
+  }
+
+  if (filters.tagId !== null) {
+    result = result.filter((todo) => (todo.tags ?? []).some((tag) => tag.id === filters.tagId));
+  }
+
+  if (filters.completion === 'active') {
+    result = result.filter((todo) => !todo.completed);
+  } else if (filters.completion === 'completed') {
+    result = result.filter((todo) => todo.completed);
+  }
+
+  if (filters.dueDateFrom) {
+    result = result.filter((todo) => !todo.due_date || todo.due_date.slice(0, 10) >= filters.dueDateFrom!);
+  }
+
+  if (filters.dueDateTo) {
+    result = result.filter((todo) => !todo.due_date || todo.due_date.slice(0, 10) <= filters.dueDateTo!);
+  }
+
+  return result;
+}
+
 // ─── Sort comparator (priority → due_date → created_at) ──────────────────────
 
 function sortTodos(a: Todo, b: Todo): number {
@@ -124,6 +233,7 @@ function TodoItem({
         type="checkbox"
         checked={todo.completed}
         onChange={() => onToggle(todo)}
+        aria-label={`Toggle completion for "${todo.title}"`}
         className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-blue-600"
       />
       <div className="flex-1 min-w-0">
@@ -365,6 +475,13 @@ export default function HomePage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTER);
+  const [searchInput, setSearchInput] = useState('');
+  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
+  const [filterPresetName, setFilterPresetName] = useState('');
+  const [selectedPresetId, setSelectedPresetId] = useState('');
+  const [presetsLoaded, setPresetsLoaded] = useState(false);
 
   // Add-todo form state
   const [newTitle, setNewTitle] = useState('');
@@ -424,10 +541,22 @@ export default function HomePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  const debouncedSearch = useDebounce(searchInput, 300);
+
   useEffect(() => {
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setFilterPresets(loadPresets());
+    setPresetsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!presetsLoaded) return;
+    savePresets(filterPresets);
+  }, [filterPresets, presetsLoaded]);
 
   async function checkAuth() {
     try {
@@ -788,6 +917,63 @@ export default function HomePage() {
     }
   }
 
+  function clearFilters() {
+    setSearchInput('');
+    setFilterState(DEFAULT_FILTER);
+    setSelectedPresetId('');
+    setFilterPresetName('');
+  }
+
+  function saveCurrentPreset() {
+    const name = filterPresetName.trim();
+    if (!name) return;
+
+    const nextPreset: FilterPreset = {
+      id: globalThis.crypto?.randomUUID?.() ?? Date.now().toString(),
+      name,
+      filters: { ...filterState, search: searchInput },
+      createdAt: new Date().toISOString(),
+    };
+
+    setFilterPresets((prev) => [...prev, nextPreset]);
+    setSelectedPresetId(nextPreset.id);
+    setFilterPresetName('');
+  }
+
+  function loadPresetById(presetId: string) {
+    setSelectedPresetId(presetId);
+
+    if (!presetId) {
+      return;
+    }
+
+    const preset = filterPresets.find((entry) => entry.id === presetId);
+    if (!preset) return;
+
+    setFilterState(preset.filters);
+    setSearchInput(preset.filters.search);
+    setFilterPresetName(preset.name);
+  }
+
+  function deleteSelectedPreset() {
+    if (!selectedPresetId) return;
+
+    setFilterPresets((prev) => prev.filter((preset) => preset.id !== selectedPresetId));
+    setSelectedPresetId('');
+    setFilterPresetName('');
+  }
+
+  function updateSearch(value: string) {
+    setSearchInput(value);
+    setFilterState((prev) => ({ ...prev, search: value }));
+    setSelectedPresetId('');
+  }
+
+  function updateFilterState(updater: (current: FilterState) => FilterState) {
+    setFilterState((current) => updater(current));
+    setSelectedPresetId('');
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -796,12 +982,18 @@ export default function HomePage() {
     );
   }
 
-  const now = getSingaporeNowLocalISO();
-  const overdue = todos.filter((t) => !t.completed && t.due_date && t.due_date < now).sort(sortTodos);
-  const pending = todos.filter((t) => !t.completed && (!t.due_date || t.due_date >= now)).sort(sortTodos);
-  const completed = todos.filter((t) => t.completed).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const availableTags = Array.from(
+    new Map<number, Tag>(todos.flatMap((todo) => todo.tags ?? []).map((tag) => [tag.id, tag] as const)).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
-  // ===== FEATURE: search-filtering — replace above three arrays with applyFilters(todos, filters) then section split =====
+  const visibleTodos = applyFilters(todos, { ...filterState, search: debouncedSearch });
+
+  const now = getSingaporeNowLocalISO();
+  const overdue = visibleTodos.filter((t) => !t.completed && t.due_date && t.due_date < now).sort(sortTodos);
+  const pending = visibleTodos.filter((t) => !t.completed && (!t.due_date || t.due_date >= now)).sort(sortTodos);
+  const completed = visibleTodos
+    .filter((t) => t.completed)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
     <div className="max-w-2xl mx-auto p-4 pb-16">
@@ -867,7 +1059,201 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ===== FEATURE: search-filtering — insert search/filter panel here ===== */}
+      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Filters</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Search, narrow, and save the current view.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            {showFilters ? 'Hide filters' : 'Show filters'}
+          </button>
+        </div>
+
+        {showFilters && (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label htmlFor="filter-search" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Search
+                </label>
+                <input
+                  id="filter-search"
+                  type="search"
+                  value={searchInput}
+                  onChange={(e) => updateSearch(e.target.value)}
+                  placeholder="Search titles or subtasks…"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Clear filters
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <label htmlFor="filter-priority" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Priority
+                </label>
+                <select
+                  id="filter-priority"
+                  value={filterState.priority}
+                  onChange={(e) => {
+                    const nextPriority = e.target.value as Priority | '';
+                    updateFilterState((current) => ({ ...current, priority: nextPriority }));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter-tag" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Tag
+                </label>
+                <select
+                  id="filter-tag"
+                  value={filterState.tagId === null ? '' : String(filterState.tagId)}
+                  onChange={(e) => {
+                    const nextTagId = e.target.value ? Number(e.target.value) : null;
+                    updateFilterState((current) => ({ ...current, tagId: nextTagId }));
+                  }}
+                  disabled={availableTags.length === 0}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm disabled:opacity-60"
+                >
+                  <option value="">All</option>
+                  {availableTags.length === 0 ? <option value="">No tags available</option> : null}
+                  {availableTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter-completion" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Completion
+                </label>
+                <select
+                  id="filter-completion"
+                  value={filterState.completion}
+                  onChange={(e) => {
+                    const nextCompletion = e.target.value as FilterState['completion'];
+                    updateFilterState((current) => ({ ...current, completion: nextCompletion }));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label htmlFor="filter-due-from" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Due from
+                </label>
+                <input
+                  id="filter-due-from"
+                  type="date"
+                  value={filterState.dueDateFrom ?? ''}
+                  onChange={(e) => {
+                    const nextDueDateFrom = e.target.value || null;
+                    updateFilterState((current) => ({ ...current, dueDateFrom: nextDueDateFrom }));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="filter-due-to" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Due to
+                </label>
+                <input
+                  id="filter-due-to"
+                  type="date"
+                  value={filterState.dueDateTo ?? ''}
+                  onChange={(e) => {
+                    const nextDueDateTo = e.target.value || null;
+                    updateFilterState((current) => ({ ...current, dueDateTo: nextDueDateTo }));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
+              <div>
+                <label htmlFor="filter-preset-name" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Preset name
+                </label>
+                <input
+                  id="filter-preset-name"
+                  type="text"
+                  value={filterPresetName}
+                  onChange={(e) => setFilterPresetName(e.target.value)}
+                  placeholder="My filter"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={saveCurrentPreset}
+                className="self-end px-3 py-2 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700"
+              >
+                Save preset
+              </button>
+
+              <div>
+                <label htmlFor="saved-presets" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                  Saved presets
+                </label>
+                <select
+                  id="saved-presets"
+                  value={selectedPresetId}
+                  onChange={(e) => loadPresetById(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
+                >
+                  <option value="">Select a preset</option>
+                  {filterPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={deleteSelectedPreset}
+                disabled={!selectedPresetId}
+                className="self-end px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Delete preset
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Manage Tags */}
       <div className="mb-4">
