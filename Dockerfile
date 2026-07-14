@@ -19,7 +19,9 @@ RUN npm ci
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Use in-memory SQLite during build so parallel Next.js workers don't contend
+# on the same database file (SQLITE_BUSY). At runtime DATABASE_PATH=/data/todos.db
+RUN DATABASE_PATH=:memory: npm run build
 
 # ─── Stage 3: Production runner ───────────────────────────────────────────────
 FROM node:22-alpine AS runner
