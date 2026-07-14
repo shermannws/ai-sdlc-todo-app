@@ -1,4 +1,10 @@
 import { type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
+import { SignJWT } from 'jose';
+import path from 'path';
+
+const TEST_JWT_SECRET = 'dev-secret-do-not-use-in-production-32c';
+const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), 'todos.db');
 
 export class TodoAppHelper {
   constructor(private page: Page) {}
@@ -39,6 +45,40 @@ export class TodoAppHelper {
   async logout(): Promise<void> {
     await this.page.getByRole('button', { name: 'Logout' }).click();
     await this.page.waitForURL('/login', { timeout: 5_000 });
+  }
+
+  async signInDirectly(username: string): Promise<void> {
+    const db = new Database(DB_PATH);
+    db.pragma('foreign_keys = ON');
+
+    const existing = db.prepare('SELECT id, username FROM users WHERE username = ?').get(username) as
+      | { id: number; username: string }
+      | undefined;
+
+    const user = existing ?? (() => {
+      const result = db.prepare('INSERT INTO users (username) VALUES (?)').run(username);
+      return db.prepare('SELECT id, username FROM users WHERE id = ?').get(Number(result.lastInsertRowid)) as {
+        id: number;
+        username: string;
+      };
+    })();
+
+    const token = await new SignJWT({ userId: user.id, username: user.username })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(new TextEncoder().encode(TEST_JWT_SECRET));
+
+    db.close();
+
+    await this.page.goto('/login');
+    await this.page.evaluate((sessionToken) => {
+      document.cookie = `todo-session=${sessionToken}; path=/; sameSite=lax`;
+    }, token);
+    await this.page.waitForFunction(() => document.cookie.includes('todo-session='));
+
+    await this.page.goto('/');
+    await this.page.waitForURL('/', { timeout: 10_000 });
   }
 
   async createTodo(title: string, opts?: { dueDate?: string; priority?: 'high' | 'medium' | 'low' }): Promise<void> {
